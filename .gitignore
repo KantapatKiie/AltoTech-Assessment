@@ -1,6 +1,7 @@
 # Local secrets and environment files
 .env
 .env.*
+.env.local
 .local-secrets.md
 
 # Python

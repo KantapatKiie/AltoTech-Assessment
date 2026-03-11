@@ -1,0 +1,51 @@
+services:
+  db:
+    image: timescale/timescaledb:latest-pg16
+    environment:
+      POSTGRES_DB: altotech
+      POSTGRES_USER: altotech
+      POSTGRES_PASSWORD: altotech
+    ports:
+      - "5432:5432"
+    volumes:
+      - timescale_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U altotech -d altotech"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  backend:
+    build:
+      context: ./backend
+    command: sh /app/entrypoint.sh
+    environment:
+      DEBUG: "1"
+      DJANGO_SECRET_KEY: local-dev-secret
+      POSTGRES_DB: altotech
+      POSTGRES_USER: altotech
+      POSTGRES_PASSWORD: altotech
+      POSTGRES_HOST: db
+      POSTGRES_PORT: 5432
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+    ports:
+      - "8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - ./backend:/app
+
+  frontend:
+    build:
+      context: ./frontend
+    ports:
+      - "5173:5173"
+    depends_on:
+      - backend
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+
+volumes:
+  timescale_data:

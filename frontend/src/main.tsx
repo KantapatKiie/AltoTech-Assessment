@@ -57,8 +57,8 @@ type Comparison = {
 };
 
 const API_BASE =
-  (import.meta as unknown as { env: { VITE_API_BASE?: string } }).env.VITE_API_BASE ||
-  "http://localhost:8000/api";
+  (import.meta as unknown as { env: { VITE_API_BASE?: string } }).env
+    .VITE_API_BASE || "http://localhost:8000/api";
 
 async function apiGet<T>(path: string): Promise<T> {
   const response = await fetch(`${API_BASE}${path}`);
@@ -68,7 +68,13 @@ async function apiGet<T>(path: string): Promise<T> {
   return response.json() as Promise<T>;
 }
 
-function SimpleLineChart({ points, valueKey }: { points: Array<Record<string, unknown>>; valueKey: string }) {
+function SimpleLineChart({
+  points,
+  valueKey,
+}: {
+  points: Array<Record<string, unknown>>;
+  valueKey: string;
+}) {
   const width = 740;
   const height = 220;
   if (points.length === 0) {
@@ -84,7 +90,8 @@ function SimpleLineChart({ points, valueKey }: { points: Array<Record<string, un
   const path = points
     .map((point, index) => {
       const x = (index / Math.max(points.length - 1, 1)) * (width - 20) + 10;
-      const y = height - ((Number(point[valueKey]) - min) / range) * (height - 20) - 10;
+      const y =
+        height - ((Number(point[valueKey]) - min) / range) * (height - 20) - 10;
       return `${index === 0 ? "M" : "L"} ${x.toFixed(2)} ${y.toFixed(2)}`;
     })
     .join(" ");
@@ -109,17 +116,23 @@ function App() {
   const [dailyEnergy, setDailyEnergy] = useState<EnergyPoint[]>([]);
   const [decisions, setDecisions] = useState<AIDecision[]>([]);
   const [comparison, setComparison] = useState<Comparison | null>(null);
-  const [selectedMachineId, setSelectedMachineId] = useState<number | null>(null);
+  const [selectedMachineId, setSelectedMachineId] = useState<number | null>(
+    null,
+  );
   const [machineSeries, setMachineSeries] = useState<SensorPoint[]>([]);
-  const [selectedDate, setSelectedDate] = useState<string>(toLocalDateInput(new Date()));
-  const [chatPrompt, setChatPrompt] = useState<string>("เมื่อวานพลังงานสูงเพราะอะไร");
+  const [selectedDate, setSelectedDate] = useState<string>(
+    toLocalDateInput(new Date()),
+  );
+  const [chatPrompt, setChatPrompt] = useState<string>(
+    "เมื่อวานพลังงานสูงเพราะอะไร",
+  );
   const [chatAnswer, setChatAnswer] = useState<string>("");
   const [loadingChat, setLoadingChat] = useState(false);
   const [error, setError] = useState<string>("");
 
   const selectedMachine = useMemo(
     () => machines.find((m) => m.id === selectedMachineId) || null,
-    [machines, selectedMachineId]
+    [machines, selectedMachineId],
   );
 
   const loadAll = async () => {
@@ -128,22 +141,33 @@ function App() {
       const now = new Date();
       const from = new Date(now.getTime() - 24 * 60 * 60 * 1000).toISOString();
       const to = now.toISOString();
-      const beforeFrom = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000).toISOString();
-      const beforeTo = new Date(now.getTime() - 4 * 24 * 60 * 60 * 1000).toISOString();
-      const afterFrom = new Date(now.getTime() - 4 * 24 * 60 * 60 * 1000).toISOString();
+      const beforeFrom = new Date(
+        now.getTime() - 7 * 24 * 60 * 60 * 1000,
+      ).toISOString();
+      const beforeTo = new Date(
+        now.getTime() - 4 * 24 * 60 * 60 * 1000,
+      ).toISOString();
+      const afterFrom = new Date(
+        now.getTime() - 4 * 24 * 60 * 60 * 1000,
+      ).toISOString();
       const afterTo = now.toISOString();
 
-      const [machineRes, summaryRes, dailyRes, decisionsRes, compareRes] = await Promise.all([
-        apiGet<{ items: Machine[] }>("/machines"),
-        apiGet<Summary>("/building/summary"),
-        apiGet<{ points: EnergyPoint[] }>(`/energy/daily?date=${selectedDate}&bucket=hour`),
-        apiGet<{ items: AIDecision[] }>(`/ai-decisions?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`),
-        apiGet<Comparison>(
-          `/energy/comparison?before_from=${encodeURIComponent(beforeFrom)}&before_to=${encodeURIComponent(
-            beforeTo
-          )}&after_from=${encodeURIComponent(afterFrom)}&after_to=${encodeURIComponent(afterTo)}`
-        ),
-      ]);
+      const [machineRes, summaryRes, dailyRes, decisionsRes, compareRes] =
+        await Promise.all([
+          apiGet<{ items: Machine[] }>("/machines"),
+          apiGet<Summary>("/building/summary"),
+          apiGet<{ points: EnergyPoint[] }>(
+            `/energy/daily?date=${selectedDate}&bucket=hour`,
+          ),
+          apiGet<{ items: AIDecision[] }>(
+            `/ai-decisions?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`,
+          ),
+          apiGet<Comparison>(
+            `/energy/comparison?before_from=${encodeURIComponent(beforeFrom)}&before_to=${encodeURIComponent(
+              beforeTo,
+            )}&after_from=${encodeURIComponent(afterFrom)}&after_to=${encodeURIComponent(afterTo)}`,
+          ),
+        ]);
 
       setMachines(machineRes.items);
       setSummary(summaryRes);
@@ -169,8 +193,8 @@ function App() {
     const to = now.toISOString();
     apiGet<{ points: SensorPoint[] }>(
       `/machines/${selectedMachineId}/sensor-data?metric=power_kw&bucket=hour&from=${encodeURIComponent(
-        from
-      )}&to=${encodeURIComponent(to)}`
+        from,
+      )}&to=${encodeURIComponent(to)}`,
     )
       .then((res) => setMachineSeries(res.points))
       .catch((e: Error) => setError(e.message));
@@ -185,7 +209,10 @@ function App() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ prompt: chatPrompt }),
       });
-      const data = (await response.json()) as { answer?: string; detail?: string };
+      const data = (await response.json()) as {
+        answer?: string;
+        detail?: string;
+      };
       if (!response.ok) {
         throw new Error(data.detail || "AI chat failed");
       }
@@ -201,7 +228,9 @@ function App() {
     <main className="app">
       <header className="hero">
         <h1>Somchai AI Operations Console</h1>
-        <p>Monitoring every machine, every decision, and every kWh in one view.</p>
+        <p>
+          Monitoring every machine, every decision, and every kWh in one view.
+        </p>
       </header>
 
       {error ? <div className="error">{error}</div> : null}
@@ -223,7 +252,13 @@ function App() {
           <article className="kpi-card">
             <h3>Today Energy</h3>
             <strong>{summary.today_energy_kwh.toFixed(2)} kWh</strong>
-            <small className={summary.is_trending_higher_than_yesterday ? "trend-up" : "trend-down"}>
+            <small
+              className={
+                summary.is_trending_higher_than_yesterday
+                  ? "trend-up"
+                  : "trend-down"
+              }
+            >
               vs yesterday: {summary.yesterday_energy_kwh.toFixed(2)} kWh
             </small>
           </article>
@@ -251,17 +286,31 @@ function App() {
           ))}
         </div>
         <div className="detail-panel">
-          <h3>{selectedMachine ? `${selectedMachine.name} Power Trend (24h)` : "Select a machine"}</h3>
-          <SimpleLineChart points={machineSeries as unknown as Array<Record<string, unknown>>} valueKey="value" />
+          <h3>
+            {selectedMachine
+              ? `${selectedMachine.name} Power Trend (24h)`
+              : "Select a machine"}
+          </h3>
+          <SimpleLineChart
+            points={machineSeries as unknown as Array<Record<string, unknown>>}
+            valueKey="value"
+          />
         </div>
       </section>
 
       <section className="panel">
         <div className="panel-header">
           <h2>Daily Energy Chart</h2>
-          <input type="date" value={selectedDate} onChange={(e) => setSelectedDate(e.target.value)} />
+          <input
+            type="date"
+            value={selectedDate}
+            onChange={(e) => setSelectedDate(e.target.value)}
+          />
         </div>
-        <SimpleLineChart points={dailyEnergy as unknown as Array<Record<string, unknown>>} valueKey="energy_kwh" />
+        <SimpleLineChart
+          points={dailyEnergy as unknown as Array<Record<string, unknown>>}
+          valueKey="energy_kwh"
+        />
       </section>
 
       <section className="panel">
@@ -308,12 +357,17 @@ function App() {
       <section className="panel">
         <h2>AI Chat Assistant (Bonus)</h2>
         <div className="chat-row">
-          <input value={chatPrompt} onChange={(e) => setChatPrompt(e.target.value)} />
+          <input
+            value={chatPrompt}
+            onChange={(e) => setChatPrompt(e.target.value)}
+          />
           <button onClick={askAI} disabled={loadingChat}>
             {loadingChat ? "Asking..." : "Ask"}
           </button>
         </div>
-        <div className="chat-answer">{chatAnswer || "Type a question about energy or AI decisions."}</div>
+        <div className="chat-answer">
+          {chatAnswer || "Type a question about energy or AI decisions."}
+        </div>
       </section>
     </main>
   );
@@ -322,5 +376,5 @@ function App() {
 createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
     <App />
-  </React.StrictMode>
+  </React.StrictMode>,
 );

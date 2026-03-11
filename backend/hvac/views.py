@@ -6,8 +6,10 @@ from anthropic import Anthropic
 from django.db import connection
 from django.db.models import OuterRef, Subquery
 from django.http import HttpRequest, HttpResponseBadRequest, JsonResponse
+from django.utils.decorators import method_decorator
 from django.utils import timezone
 from django.views import View
+from django.views.decorators.csrf import csrf_exempt
 
 from hvac.models import AIDecision, Machine, SensorReading
 
@@ -297,6 +299,7 @@ class DailyEnergyView(View):
         )
 
 
+@method_decorator(csrf_exempt, name="dispatch")
 class AIChatView(View):
     def post(self, request: HttpRequest):
         api_key = os.getenv("ANTHROPIC_API_KEY", "")
@@ -331,22 +334,31 @@ class AIChatView(View):
             "recent_decisions": recent_decisions,
         }
 
-        client = Anthropic(api_key=api_key)
-        msg = client.messages.create(
-            model="claude-3-5-haiku-latest",
-            max_tokens=400,
-            temperature=0.2,
-            messages=[
-                {
-                    "role": "user",
-                    "content": (
-                        "You are an HVAC operations assistant. Answer briefly in Thai with concrete observations.\n"
-                        f"Context: {json.dumps(context, default=str)}\n"
-                        f"Question: {prompt}"
-                    ),
-                }
-            ],
-        )
-
-        answer = msg.content[0].text if msg.content else "No response"
-        return JsonResponse({"answer": answer, "context": context})
+        try:
+            client = Anthropic(api_key=api_key)
+            msg = client.messages.create(
+                model="claude-3-5-haiku-latest",
+                max_tokens=400,
+                temperature=0.2,
+                messages=[
+                    {
+                        "role": "user",
+                        "content": (
+                            "You are an HVAC operations assistant. Answer briefly in Thai with concrete observations.\n"
+                            f"Context: {json.dumps(context, default=str)}\n"
+                            f"Question: {prompt}"
+                        ),
+                    }
+                ],
+            )
+            answer = msg.content[0].text if msg.content else "No response"
+            return JsonResponse({"answer": answer, "context": context, "source": "anthropic"})
+        except Exception:
+            decisions_count = len(recent_decisions)
+            fallback = (
+                "สรุปจากข้อมูลล่าสุดในระบบ: "
+                f"พลังงาน 24 ชั่วโมงล่าสุดประมาณ {context['recent_24h_energy_kwh']} kWh, "
+                f"มี AI decisions ล่าสุด {decisions_count} รายการ. "
+                "ขณะนี้ไม่สามารถเชื่อมต่อผู้ให้บริการ LLM ภายนอกได้ จึงแสดงผลสรุปจากข้อมูลภายในระบบแทน"
+            )
+            return JsonResponse({"answer": fallback, "context": context, "source": "fallback"})

@@ -19,6 +19,20 @@ Services:
 - Backend API: http://localhost:8000
 - Database: localhost:5432
 
+Or run everything (build + checks + smoke tests) using:
+
+```bash
+./run_all.sh
+```
+
+Quick stack scripts:
+
+```bash
+./up_stack.sh          # docker compose up --build -d
+./up_stack.sh fast     # docker compose up -d
+./down_stack.sh        # docker compose down
+```
+
 The backend entrypoint automatically:
 1. waits for DB readiness,
 2. runs migrations,
@@ -37,7 +51,13 @@ frontend/
   src/styles.css
 docker-compose.yml
 DESIGN.md
+PROJECT.md
+run_all.sh
+smoke_test.sh
 ```
+
+Project overview details:
+- [PROJECT.md](PROJECT.md)
 
 ## Implemented Requirements
 
@@ -70,6 +90,11 @@ Infrastructure:
 - AI Chat Assistant endpoint + UI panel
 - Backend route: `POST /api/ai/chat`
 - Uses local env var `ANTHROPIC_API_KEY`
+- Frontend bonus panel available in dashboard section "AI Chat Assistant (Bonus)"
+
+Bonus behavior details:
+- If Anthropic key is valid and reachable, response source is `anthropic` (real LLM call).
+- If external LLM fails (invalid/expired key or provider error), system returns a data-grounded fallback summary with source `fallback`.
 
 ## API Documentation
 
@@ -122,6 +147,7 @@ Commands used:
 docker compose up --build -d
 docker compose exec -T backend python manage.py check
 docker compose exec -T frontend npm run build
+./smoke_test.sh
 ```
 
 ## Notes / Trade-offs

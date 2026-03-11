@@ -11,7 +11,17 @@ from hvac.models import AIDecision, Machine, SensorReading
 class Command(BaseCommand):
     help = "Seed initial machine and time-series sample data"
 
+    def add_arguments(self, parser):
+        parser.add_argument("--force", action="store_true", help="Clear existing data and regenerate")
+
     def handle(self, *args, **options):
+        force = options.get("force", False)
+
+        if force:
+            SensorReading.objects.all().delete()
+            AIDecision.objects.all().delete()
+            Machine.objects.all().delete()
+
         if Machine.objects.exists() and SensorReading.objects.exists() and AIDecision.objects.exists():
             self.stdout.write(self.style.SUCCESS("Seed skipped: data already exists"))
             return
@@ -79,9 +89,9 @@ class Command(BaseCommand):
                     if m.machine_type == "ac_small" and hour >= 18 and m.name in {"AC-S1", "AC-S2", "AC-S4"}:
                         is_on = False
 
-                baseline_factor = 0.68 if m.machine_type != "fan" else 0.55
+                baseline_factor = 0.82 if m.machine_type != "fan" else 0.70
                 if is_ai_period:
-                    baseline_factor *= 0.85
+                    baseline_factor *= 0.68
                 if not is_on:
                     baseline_factor = 0.0
 
@@ -125,7 +135,7 @@ class Command(BaseCommand):
             ("TURN_OFF", "OFF", "Evening shutdown sequence"),
             ("SET_TEMP", "27.0", "Night mode efficiency"),
         ]
-        ai_days = sorted(day_sequence.keys())[3:]
+        ai_days = [end_time.date() - timedelta(days=offset) for offset in range(4)]
         machine_lookup = {m.name: m for m in machines}
         target_order = [
             "AC-L1",
@@ -145,10 +155,13 @@ class Command(BaseCommand):
             for idx in range(daily_count):
                 action_type, action_value, reason = templates[idx]
                 machine = machine_lookup[target_order[idx]]
+                event_ts = start + timedelta(hours=clock_offsets[idx])
+                if event_ts > end_time:
+                    continue
                 decisions.append(
                     AIDecision(
                         machine=machine,
-                        timestamp=start + timedelta(hours=clock_offsets[idx]),
+                        timestamp=event_ts,
                         action_type=action_type,
                         action_value=action_value,
                         reason=reason,

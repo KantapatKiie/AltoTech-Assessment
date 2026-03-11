@@ -1,178 +1,131 @@
-# AltoTech Assessment Master Plan (Finish Today)
+# AltoTech Full-Stack Assessment
 
-## 1) Mission
+This repository contains a complete runnable prototype for Somchai's HVAC AI operations dashboard.
 
-Build a complete Human-Machine Interface dashboard for Somchai to monitor building cooling operations and AI optimization outcomes.
+## Tech Stack
+- Frontend: React + TypeScript + Vite
+- Backend: Django + Django REST Framework
+- Database: TimescaleDB (PostgreSQL)
+- Runtime: Docker Compose
 
-Required stack:
+## One-Command Startup
 
-- React + TypeScript
-- Django REST Framework
-- TimescaleDB
+```bash
+docker compose up --build
+```
 
-Primary success condition:
+Services:
+- Frontend: http://localhost:5173
+- Backend API: http://localhost:8000
+- Database: localhost:5432
 
-- Reviewer can run one command: `docker-compose up --build`
-- System starts fully and dashboard shows live API-backed data.
+The backend entrypoint automatically:
+1. waits for DB readiness,
+2. runs migrations,
+3. seeds data,
+4. starts the Django server.
 
-## 2) What Must Be Delivered
+## Project Structure
 
-### Problem 1 - System Design (20%)
+```text
+backend/
+  config/
+  hvac/
+    management/commands/seed_data.py
+frontend/
+  src/main.tsx
+  src/styles.css
+docker-compose.yml
+DESIGN.md
+```
 
-- TimescaleDB schema design:
-  - machines
-  - sensor_readings (time-series every 5 minutes)
-  - ai_decisions
-- REST API design:
-  - machine list
-  - sensor history with time-range + bucket aggregation
-  - building summary
-  - AI decision log
-  - before vs after energy comparison
-- Frontend architecture:
-  - layout/navigation
-  - data fetching pattern and caching strategy
-  - reusable components
-  - state management
+## Implemented Requirements
 
-Output file:
+### Problem 1 - Design
+- Full design details in [DESIGN.md](DESIGN.md)
+- Includes data model, API contracts, frontend architecture, and trade-offs
 
-- `DESIGN.md`
-
-### Problem 2 - Build It (Core)
+### Problem 2 - Build
 
 Backend:
-
-- Implement schema and indexes for fast time-range queries.
-- Use TimescaleDB hypertable and `time_bucket()` aggregation.
-- Seed 7 days of realistic data at 5-minute intervals.
-- Seed AI decision logs.
+- Machine registry, sensor readings, AI decision models
+- Seeded 7-day data at 5-minute cadence
+- Manual vs AI split implemented
+- Time aggregation via `time_bucket()`
+- Date-range validation and error handling
 
 Frontend:
-
-- Building Overview (KPI cards)
-- Machine Status list/table + per-machine detail
-- Daily Energy Chart
-- AI Decision Timeline
-- Before vs After comparison
-- Include loading, empty, and error states
+- Building overview KPIs
+- Machine status + machine detail trend
+- Daily energy chart with date selection
+- AI decision timeline
+- Before vs after energy comparison
+- Loading/error/empty states
 
 Infrastructure:
+- Full Docker Compose stack
+- Auto migration + auto seed on startup
 
-- Dockerized TimescaleDB + Django + React
-- Auto migration + auto seeding
-- Starts from one command only
+### Problem 3 - Bonus
+- AI Chat Assistant endpoint + UI panel
+- Backend route: `POST /api/ai/chat`
+- Uses local env var `ANTHROPIC_API_KEY`
 
-### Problem 3 - Optional Bonus (10%)
+## API Documentation
 
-Choose one feature (recommended to maximize score):
+### Health
+- `GET /api/health`
 
-- AI Chat Assistant (LLM)
-- One-click PDF report
-- Smart Alerts
-- Custom feature
-
-**For LLM integration, keep API keys in local environment variables only (for example: `.env.local`) and never commit keys to git.**
-
-## 3) Must-Have Acceptance Criteria (Non-Negotiable)
-
-- `docker-compose up --build` works without manual setup.
-- Dashboard data comes from API (no hardcoded metrics).
-- API responses are structured and correct.
-- TypeScript compile is clean.
-- `DESIGN.md` clearly explains design and trade-offs.
-- `README.md` includes setup, architecture, API docs, and trade-offs.
-
-## 4) Data Rules to Make Demo Credible
-
-- Machine types: Large AC, Small AC, Ventilation Fan.
-- Sensor cadence: every 5 minutes.
-- AI decisions: around 8-12 decisions/day during AI period.
-- Period split:
-  - Day 1-3: Manual operation, higher energy, no AI decisions.
-  - Day 4-7: AI control, around 15% lower energy, AI logs present.
-
-Suggested realistic behavior:
-
-- 00:00-06:00 minimal critical machines
-- 06:00-08:00 startup
-- 08:00-18:00 peak operation
-- 18:00-22:00 wind-down
-- 22:00-00:00 night mode
-
-## 5) Today Execution Schedule (Practical)
-
-### Block A (1-2h): Bootstrap
-
-- Scaffold backend and frontend projects.
-- Create docker-compose stack.
-- Verify all services boot.
-
-### Block B (2h): Data Layer
-
-- Implement models and migrations.
-- Create hypertable and indexes.
-- Build seed script for 7-day data and AI logs.
-
-### Block C (2h): API Layer
-
-- Implement required endpoints.
-- Add query validation and error handling.
-- Implement bucket options: 5m/hour/day.
-
-### Block D (3h): Frontend Layer
-
-- Build all required pages/components.
-- Integrate API services.
-- Add loading/error/empty states.
-
-### Block E (1-1.5h): Bonus
-
-- Add AI Chat Assistant using Anthropic via backend proxy endpoint.
-- Keep API key in environment variables only.
-
-### Block F (1h): Finalize
-
-- Write `DESIGN.md` and complete `README.md`.
-- Validate from clean start with docker compose.
-- Prepare final submission notes.
-
-## 6) Endpoint Contract Checklist
-
+### Machine List
 - `GET /api/machines`
-- `GET /api/machines/{id}/sensor-data?metric=&from=&to=&bucket=`
+
+### Machine Sensor Data
+- `GET /api/machines/{id}/sensor-data?metric=power_kw&from=<ISO>&to=<ISO>&bucket=hour`
+- `metric`: `power_kw|temperature_c|setpoint_c|speed_percent`
+- `bucket`: `5m|hour|day`
+
+### Building Summary
 - `GET /api/building/summary`
-- `GET /api/ai-decisions?from=&to=&machine_id=`
-- `GET /api/energy/comparison?before_from=&before_to=&after_from=&after_to=`
 
-Expected behavior:
+### AI Decision Log
+- `GET /api/ai-decisions?from=<ISO>&to=<ISO>&machine_id=<optional>`
 
-- Invalid date range returns clear validation error.
-- Missing machine returns 404.
-- Empty result sets return valid empty arrays + metadata.
+### Before vs After
+- `GET /api/energy/comparison?before_from=<ISO>&before_to=<ISO>&after_from=<ISO>&after_to=<ISO>`
 
-## 7) QA Checklist Before Submission
+### Daily Building Energy
+- `GET /api/energy/daily?date=YYYY-MM-DD&bucket=hour`
 
-- Backend
-  - Migrations run automatically.
-  - Seed runs automatically once.
-  - Aggregations match expected values.
-- Frontend
-  - No TypeScript errors.
-  - Charts render correctly with API data.
-  - All required views are navigable.
-- Infra
-  - New clone can run in one command.
-- Docs
-  - `DESIGN.md` and `README.md` are complete and clear.
+### AI Chat (Bonus)
+- `POST /api/ai/chat`
+- JSON body:
 
-## 8) Security Notes
+```json
+{
+  "prompt": "Why was energy high yesterday?"
+}
+```
 
-- Keep credentials in ignored local files and environment variables.
-- Do not commit API keys.
-- Rotate temporary keys after submission.
+## Local Secrets
 
-## 9) Current Repository Notes
+Store keys in `.env.local` (gitignored):
 
-- Existing markdown content has been consolidated into this master plan.
-- Use this file as single source of truth for finishing the assessment today.
+```env
+ANTHROPIC_API_KEY=your_key_here
+```
+
+## Validation Run
+
+Commands used:
+
+```bash
+docker compose up --build -d
+docker compose exec -T backend python manage.py check
+docker compose exec -T frontend npm run build
+```
+
+## Notes / Trade-offs
+
+- Timescale extension is enabled and `time_bucket()` is used for aggregation.
+- Hypertable conversion is attempted in seed script and gracefully skipped if table PK constraints conflict with partitioning requirements.
+- For production hardening, next steps would include explicit test suites, auth, pagination, and richer anomaly detection.

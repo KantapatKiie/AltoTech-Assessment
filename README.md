@@ -3,7 +3,7 @@
 This repository contains a complete runnable prototype for Somchai's HVAC AI operations dashboard.
 
 ## Tech Stack
-- Frontend: React + TypeScript + Vite
+- Frontend: React + TypeScript + Vite + Tailwind CSS
 - Backend: Django + Django REST Framework
 - Database: TimescaleDB (PostgreSQL)
 - Runtime: Docker Compose
@@ -19,6 +19,9 @@ Services:
 - Backend API: http://localhost:8000
 - Database: localhost:5432
 
+Health endpoint:
+- `GET /api/health` (checks backend and database readiness)
+
 Or run everything (build + checks + smoke tests) using:
 
 ```bash
@@ -31,6 +34,8 @@ Quick stack scripts:
 ./up_stack.sh          # docker compose up --build -d
 ./up_stack.sh fast     # docker compose up -d
 ./down_stack.sh        # docker compose down
+./smoke_test.sh        # smoke test all required endpoints
+./run_all.sh           # full flow: up + checks + build + smoke
 ```
 
 The backend entrypoint automatically:
@@ -47,13 +52,23 @@ backend/
   hvac/
     management/commands/seed_data.py
 frontend/
+  src/app/
+  src/components/
+    charts/
+    dashboard/
+  src/hooks/
+  src/pages/
+  src/services/
+  src/styles/
+  src/types/
   src/main.tsx
-  src/styles.css
 docker-compose.yml
 DESIGN.md
 PROJECT.md
 run_all.sh
 smoke_test.sh
+up_stack.sh
+down_stack.sh
 ```
 
 Project overview details:
@@ -75,12 +90,14 @@ Backend:
 - Date-range validation and error handling
 
 Frontend:
+- Structured folder design: `services`, `components`, `hooks`, `pages`, `styles`, `types`
+- Tailwind-based UI with custom theme and non-template visual styling
 - Building overview KPIs
 - Machine status + machine detail trend
 - Daily energy chart with date selection
 - AI decision timeline
 - Before vs after energy comparison
-- Loading/error/empty states
+- Loading/error/empty states + safer API error handling
 
 Infrastructure:
 - Full Docker Compose stack
@@ -95,6 +112,7 @@ Infrastructure:
 Bonus behavior details:
 - If Anthropic key is valid and reachable, response source is `anthropic` (real LLM call).
 - If external LLM fails (invalid/expired key or provider error), system returns a data-grounded fallback summary with source `fallback`.
+- Frontend consumes JSON safely and avoids the previous `Unexpected token '<'` error when non-JSON is returned.
 
 ## API Documentation
 
@@ -148,6 +166,28 @@ docker compose up --build -d
 docker compose exec -T backend python manage.py check
 docker compose exec -T frontend npm run build
 ./smoke_test.sh
+```
+
+## How To Use Scripts
+
+1. First run or after dependency changes:
+```bash
+./up_stack.sh
+```
+
+2. Fast start without rebuild:
+```bash
+./up_stack.sh fast
+```
+
+3. Full verification in one command:
+```bash
+./run_all.sh
+```
+
+4. Stop everything:
+```bash
+./down_stack.sh
 ```
 
 ## Notes / Trade-offs

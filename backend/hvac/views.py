@@ -53,7 +53,16 @@ def _parse_range(request: HttpRequest):
 
 class HealthView(View):
     def get(self, request: HttpRequest):
-        return JsonResponse({"status": "ok", "service": "backend"})
+        try:
+            with connection.cursor() as cursor:
+                cursor.execute("SELECT 1")
+                cursor.fetchone()
+            return JsonResponse({"status": "ok", "service": "backend", "database": "ok"})
+        except Exception:
+            return JsonResponse(
+                {"status": "degraded", "service": "backend", "database": "unavailable"},
+                status=503,
+            )
 
 
 class MachineListView(View):

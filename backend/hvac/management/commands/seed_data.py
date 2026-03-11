@@ -2,7 +2,7 @@ import random
 from datetime import datetime, timedelta
 
 from django.core.management.base import BaseCommand
-from django.db import connection
+from django.db import DatabaseError, connection
 from django.utils import timezone
 
 from hvac.models import AIDecision, Machine, SensorReading
@@ -12,7 +12,7 @@ class Command(BaseCommand):
     help = "Seed initial machine and time-series sample data"
 
     def handle(self, *args, **options):
-        if Machine.objects.exists():
+        if Machine.objects.exists() and SensorReading.objects.exists() and AIDecision.objects.exists():
             self.stdout.write(self.style.SUCCESS("Seed skipped: data already exists"))
             return
 
@@ -30,14 +30,22 @@ class Command(BaseCommand):
             Machine(name="FAN-03", machine_type="fan", zone="Core", rated_power_kw=5),
             Machine(name="FAN-04", machine_type="fan", zone="Core", rated_power_kw=5),
         ]
-        Machine.objects.bulk_create(machines)
+        if not Machine.objects.exists():
+            Machine.objects.bulk_create(machines)
         machines = list(Machine.objects.all())
 
         with connection.cursor() as cursor:
             cursor.execute("CREATE EXTENSION IF NOT EXISTS timescaledb;")
-            cursor.execute(
-                "SELECT create_hypertable('hvac_sensorreading', 'timestamp', if_not_exists => TRUE, migrate_data => TRUE);"
-            )
+            try:
+                cursor.execute(
+                    "SELECT create_hypertable('hvac_sensorreading', 'timestamp', if_not_exists => TRUE, migrate_data => TRUE);"
+                )
+            except DatabaseError:
+                self.stdout.write(
+                    self.style.WARNING(
+                        "Hypertable conversion skipped due to table primary-key constraints; continuing with Timescale extension enabled."
+                    )
+                )
 
         end_time = timezone.now().replace(minute=0, second=0, microsecond=0)
         start_time = end_time - timedelta(days=7)
@@ -101,6 +109,8 @@ class Command(BaseCommand):
                     )
                 )
             ts += timedelta(minutes=5)
+        if SensorReading.objects.exists():
+            SensorReading.objects.all().delete()
         SensorReading.objects.bulk_create(readings, batch_size=2000)
 
         decisions = []
@@ -144,6 +154,8 @@ class Command(BaseCommand):
                         reason=reason,
                     )
                 )
+        if AIDecision.objects.exists():
+            AIDecision.objects.all().delete()
         AIDecision.objects.bulk_create(decisions)
 
         self.stdout.write(self.style.SUCCESS("Seed completed"))

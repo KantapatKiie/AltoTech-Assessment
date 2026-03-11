@@ -29,7 +29,10 @@ METRIC_MAP = {
 def _parse_dt(value: str | None, fallback: datetime) -> datetime:
     if not value:
         return fallback
-    return datetime.fromisoformat(value.replace("Z", "+00:00"))
+    parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    if timezone.is_naive(parsed):
+        return timezone.make_aware(parsed)
+    return parsed
 
 
 def _parse_range(request: HttpRequest):

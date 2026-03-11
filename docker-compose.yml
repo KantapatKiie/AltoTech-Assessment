@@ -19,6 +19,8 @@ services:
     build:
       context: ./backend
     command: sh /app/entrypoint.sh
+    env_file:
+      - .env.local
     environment:
       DEBUG: "1"
       DJANGO_SECRET_KEY: local-dev-secret
@@ -27,7 +29,6 @@ services:
       POSTGRES_PASSWORD: altotech
       POSTGRES_HOST: db
       POSTGRES_PORT: 5432
-      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
     ports:
       - "8000:8000"
     depends_on:

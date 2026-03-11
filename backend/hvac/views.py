@@ -1,4 +1,5 @@
 import json
+import logging
 import os
 from datetime import datetime, timedelta
 
@@ -26,6 +27,39 @@ METRIC_MAP = {
     "setpoint_c": "setpoint_c",
     "speed_percent": "speed_percent",
 }
+
+logger = logging.getLogger(__name__)
+
+
+def _build_fallback_answer(prompt: str, context: dict, llm_error: str) -> str:
+    question = prompt.lower()
+    energy = context["recent_24h_energy_kwh"]
+    decisions_count = len(context.get("recent_decisions", []))
+
+    if "ทำไม" in question or "why" in question:
+        return (
+            f"คำถาม: {prompt}\n"
+            f"ระบบใช้ fallback เพราะเชื่อม LLM ไม่สำเร็จ ({llm_error}).\n"
+            f"ข้อสังเกตจากข้อมูลจริง: พลังงาน 24 ชั่วโมงล่าสุด {energy} kWh และมี AI decisions ล่าสุด {decisions_count} รายการ.\n"
+            "แนวโน้มสาเหตุที่ควรตรวจ: ช่วงบ่ายที่โหลดสูง, อุณหภูมิตั้งต้นของโซนที่ใช้งานหนาแน่น, และอุปกรณ์ที่เปิดนอกเวลางาน"
+        )
+
+    if "ลด" in question or "ประหยัด" in question or "save" in question:
+        return (
+            f"คำถาม: {prompt}\n"
+            f"ระบบใช้ fallback เพราะเชื่อม LLM ไม่สำเร็จ ({llm_error}).\n"
+            "ข้อเสนอจากข้อมูลล่าสุด:\n"
+            "1) ลด setpoint ช่วงบ่ายลงทีละ 0.5C ในโซนโหลดสูงและติดตาม comfort\n"
+            "2) ปิด AC โซน low-occupancy หลัง 18:00 โดยใช้ schedule ตาม occupancy\n"
+            "3) จำกัดการทำงานพัดลมที่ไม่จำเป็นนอกเวลางานและตั้ง alarm เมื่อโหลดเกิน baseline"
+        )
+
+    return (
+        f"คำถาม: {prompt}\n"
+        f"ระบบใช้ fallback เพราะเชื่อม LLM ไม่สำเร็จ ({llm_error}).\n"
+        f"สรุปข้อมูลล่าสุด: พลังงาน 24 ชั่วโมง {energy} kWh, AI decisions ล่าสุด {decisions_count} รายการ.\n"
+        "หากต้องการวิเคราะห์เชิงลึก โปรดตรวจ key/สิทธิ์ของ Anthropic เพื่อให้ตอบจาก LLM จริง"
+    )
 
 
 def _parse_dt(value: str | None, fallback: datetime) -> datetime:
@@ -361,13 +395,24 @@ class AIChatView(View):
                 ],
             )
             answer = msg.content[0].text if msg.content else "No response"
-            return JsonResponse({"answer": answer, "context": context, "source": "anthropic"})
-        except Exception:
-            decisions_count = len(recent_decisions)
-            fallback = (
-                "สรุปจากข้อมูลล่าสุดในระบบ: "
-                f"พลังงาน 24 ชั่วโมงล่าสุดประมาณ {context['recent_24h_energy_kwh']} kWh, "
-                f"มี AI decisions ล่าสุด {decisions_count} รายการ. "
-                "ขณะนี้ไม่สามารถเชื่อมต่อผู้ให้บริการ LLM ภายนอกได้ จึงแสดงผลสรุปจากข้อมูลภายในระบบแทน"
+            return JsonResponse(
+                {
+                    "answer": answer,
+                    "context": context,
+                    "source": "anthropic",
+                    "llm_status": "connected",
+                }
             )
-            return JsonResponse({"answer": fallback, "context": context, "source": "fallback"})
+        except Exception as exc:
+            error_message = str(exc)
+            logger.warning("Anthropic request failed: %s", error_message)
+            fallback = _build_fallback_answer(prompt, context, error_message)
+            return JsonResponse(
+                {
+                    "answer": fallback,
+                    "context": context,
+                    "source": "fallback",
+                    "llm_status": "unavailable",
+                    "llm_error": error_message,
+                }
+            )

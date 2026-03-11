@@ -23,6 +23,7 @@ export function DashboardPage() {
     setChatPrompt,
     chatAnswer,
     chatSource,
+    chatMeta,
     loadingChat,
     askAI,
     error,
@@ -33,7 +34,7 @@ export function DashboardPage() {
       <section className="relative overflow-hidden rounded-3xl bg-slateink p-8 text-white">
         <div className="absolute -right-8 -top-8 h-44 w-44 rounded-full bg-cobalt/40 blur-2xl" />
         <div className="absolute bottom-0 right-16 h-24 w-24 rounded-full bg-mintline/30 blur-xl" />
-        <h1 className="relative text-4xl font-bold tracking-tight">Somchai Operations Studio</h1>
+        <h1 className="relative text-4xl font-bold tracking-tight">Energy Operations Studio</h1>
         <p className="relative mt-2 max-w-2xl text-sm text-blue-100">
           Observe machine states, AI control actions, and building energy impact in one command center.
         </p>
@@ -85,7 +86,7 @@ export function DashboardPage() {
         <LineChart points={dailyEnergy as unknown as Array<Record<string, unknown>>} valueKey="energy_kwh" />
       </section>
 
-      <section className="grid gap-4 xl:grid-cols-2">
+      <section className="grid gap-4 xl:grid-cols-ๅ">
         <section className="rounded-2xl bg-white p-4 shadow-card ring-1 ring-slate-100">
           <h2 className="mb-3 text-xl font-semibold text-slateink">AI Decision Timeline</h2>
           <DecisionTimeline decisions={decisions} />
@@ -96,16 +97,18 @@ export function DashboardPage() {
             <h2 className="mb-3 text-xl font-semibold text-slateink">Before vs After</h2>
             <ComparisonPanel comparison={comparison} />
           </section>
-          <ChatAssistantPanel
-            prompt={chatPrompt}
-            setPrompt={setChatPrompt}
-            loading={loadingChat}
-            answer={chatAnswer}
-            source={chatSource}
-            onAsk={askAI}
-          />
         </section>
       </section>
+
+      <ChatAssistantPanel
+        prompt={chatPrompt}
+        setPrompt={setChatPrompt}
+        loading={loadingChat}
+        answer={chatAnswer}
+        source={chatSource}
+        meta={chatMeta}
+        onAsk={askAI}
+      />
     </main>
   );
 }

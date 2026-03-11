@@ -3,6 +3,7 @@ from datetime import datetime, timedelta
 
 from django.core.management.base import BaseCommand
 from django.db import DatabaseError, connection
+from django.db.models import Max, Min
 from django.utils import timezone
 
 from hvac.models import AIDecision, Machine, SensorReading
@@ -17,14 +18,38 @@ class Command(BaseCommand):
     def handle(self, *args, **options):
         force = options.get("force", False)
 
+        now_anchor = timezone.now().replace(minute=0, second=0, microsecond=0)
+        seed_year = now_anchor.year
+        start_time = timezone.make_aware(datetime(seed_year, 2, 1, 0, 0, 0))
+        end_time = timezone.make_aware(datetime(seed_year, 5, 1, 0, 0, 0))
+        expected_last_point = end_time - timedelta(minutes=5)
+
         if force:
             SensorReading.objects.all().delete()
             AIDecision.objects.all().delete()
             Machine.objects.all().delete()
 
-        if Machine.objects.exists() and SensorReading.objects.exists() and AIDecision.objects.exists():
-            self.stdout.write(self.style.SUCCESS("Seed skipped: data already exists"))
-            return
+        if not force and Machine.objects.exists() and SensorReading.objects.exists() and AIDecision.objects.exists():
+            ts_bounds = SensorReading.objects.aggregate(min_ts=Min("timestamp"), max_ts=Max("timestamp"))
+            has_expected_window = (
+                ts_bounds["min_ts"] is not None
+                and ts_bounds["max_ts"] is not None
+                and ts_bounds["min_ts"] <= start_time
+                and ts_bounds["max_ts"] >= expected_last_point
+            )
+
+            if has_expected_window:
+                self.stdout.write(self.style.SUCCESS("Seed skipped: expected Feb-Apr dataset already exists"))
+                return
+
+            self.stdout.write(
+                self.style.WARNING(
+                    "Existing dataset does not match Feb-Apr window; regenerating seed data automatically"
+                )
+            )
+            SensorReading.objects.all().delete()
+            AIDecision.objects.all().delete()
+            Machine.objects.all().delete()
 
         machines = [
             Machine(name="AC-L1", machine_type="ac_large", zone="Zone A", rated_power_kw=45),
@@ -57,26 +82,19 @@ class Command(BaseCommand):
                     )
                 )
 
-        end_time = timezone.now().replace(minute=0, second=0, microsecond=0)
-        start_time = end_time - timedelta(days=7)
-
         rng = random.Random(20260311)
 
-        readings = []
-        day_cursor = start_time.date()
-        day_sequence = {}
-        index = 0
-        while day_cursor < end_time.date():
-            day_sequence[day_cursor] = index
-            day_cursor += timedelta(days=1)
-            index += 1
-
+        ai_cutover_date = now_anchor.date() - timedelta(days=4)
         always_on = {"AC-S5", "FAN-01"}
+        batch = []
+        batch_size = 4000
+
+        if SensorReading.objects.exists():
+            SensorReading.objects.all().delete()
         ts = start_time
         while ts < end_time:
             hour = ts.hour
-            day_index = day_sequence.get(ts.date(), 6)
-            is_ai_period = day_index >= 3
+            is_ai_period = ts.date() >= ai_cutover_date
 
             for m in machines:
                 is_on = 6 <= hour < 22
@@ -107,7 +125,7 @@ class Command(BaseCommand):
                 if m.machine_type == "fan" and is_on:
                     speed = 60 + rng.uniform(-10, 12)
 
-                readings.append(
+                batch.append(
                     SensorReading(
                         machine=m,
                         timestamp=ts,
@@ -118,10 +136,14 @@ class Command(BaseCommand):
                         is_on=is_on,
                     )
                 )
+
+                if len(batch) >= batch_size:
+                    SensorReading.objects.bulk_create(batch, batch_size=batch_size)
+                    batch.clear()
             ts += timedelta(minutes=5)
-        if SensorReading.objects.exists():
-            SensorReading.objects.all().delete()
-        SensorReading.objects.bulk_create(readings, batch_size=2000)
+
+        if batch:
+            SensorReading.objects.bulk_create(batch, batch_size=batch_size)
 
         decisions = []
         templates = [
@@ -135,7 +157,7 @@ class Command(BaseCommand):
             ("TURN_OFF", "OFF", "Evening shutdown sequence"),
             ("SET_TEMP", "27.0", "Night mode efficiency"),
         ]
-        ai_days = [end_time.date() - timedelta(days=offset) for offset in range(4)]
+        ai_days = [now_anchor.date() - timedelta(days=offset) for offset in range(4)]
         machine_lookup = {m.name: m for m in machines}
         target_order = [
             "AC-L1",
@@ -171,4 +193,8 @@ class Command(BaseCommand):
             AIDecision.objects.all().delete()
         AIDecision.objects.bulk_create(decisions)
 
-        self.stdout.write(self.style.SUCCESS("Seed completed"))
+        self.stdout.write(
+            self.style.SUCCESS(
+                f"Seed completed for {start_time.date()} to {end_time.date()} (Feb-Mar-Apr window)"
+            )
+        )

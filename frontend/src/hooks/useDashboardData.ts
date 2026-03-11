@@ -40,6 +40,7 @@ export function useDashboardData() {
   const [chatPrompt, setChatPrompt] = useState("เมื่อวานพลังงานสูงเพราะอะไร");
   const [chatAnswer, setChatAnswer] = useState("");
   const [chatSource, setChatSource] = useState<string>("");
+  const [chatMeta, setChatMeta] = useState<string>("");
   const [loadingChat, setLoadingChat] = useState(false);
   const [error, setError] = useState("");
 
@@ -107,12 +108,16 @@ export function useDashboardData() {
     try {
       setLoadingChat(true);
       setChatAnswer("");
+      setChatMeta("");
       const result = await askAssistant(chatPrompt);
       setChatAnswer(result.answer || "No answer");
       setChatSource(result.source || "");
+      const parts = [result.llm_status ? `llm: ${result.llm_status}` : "", result.llm_error || ""].filter(Boolean);
+      setChatMeta(parts.join(" | "));
     } catch (e) {
       setChatAnswer(e instanceof Error ? e.message : "Unknown error");
       setChatSource("error");
+      setChatMeta("");
     } finally {
       setLoadingChat(false);
     }
@@ -134,6 +139,7 @@ export function useDashboardData() {
     setChatPrompt,
     chatAnswer,
     chatSource,
+    chatMeta,
     loadingChat,
     askAI,
     error,

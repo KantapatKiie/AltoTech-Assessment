@@ -8,6 +8,9 @@ This repository contains a complete runnable prototype for Somchai's HVAC AI ope
 - Database: TimescaleDB (PostgreSQL)
 - Runtime: Docker Compose
 
+Package manager:
+- Frontend uses `pnpm`
+
 ## One-Command Startup
 
 ```bash
@@ -36,6 +39,9 @@ Quick stack scripts:
 ./down_stack.sh        # docker compose down
 ./smoke_test.sh        # smoke test all required endpoints
 ./run_all.sh           # full flow: up + checks + build + smoke
+./seed_data.sh         # run seed_data in backend container
+./seed_data.sh --force # clear + reseed all demo data
+./run_k6.sh            # k6 smoke/perf test
 ```
 
 The backend entrypoint automatically:
@@ -69,10 +75,14 @@ run_all.sh
 smoke_test.sh
 up_stack.sh
 down_stack.sh
+k6/
+run_k6.sh
 ```
 
 Project overview details:
 - [PROJECT.md](PROJECT.md)
+- [frontend/README.md](frontend/README.md)
+- [backend/README.md](backend/README.md)
 
 ## Implemented Requirements
 
@@ -84,7 +94,7 @@ Project overview details:
 
 Backend:
 - Machine registry, sensor readings, AI decision models
-- Seeded 7-day data at 5-minute cadence
+- Seeded 3-month data window (February, March, April) at 5-minute cadence
 - Manual vs AI split implemented
 - Time aggregation via `time_bucket()`
 - Date-range validation and error handling
@@ -107,7 +117,13 @@ Infrastructure:
 - AI Chat Assistant endpoint + UI panel
 - Backend route: `POST /api/ai/chat`
 - Uses local env var `ANTHROPIC_API_KEY`
-- Frontend bonus panel available in dashboard section "AI Chat Assistant (Bonus)"
+- Frontend uses a floating chat widget at bottom-right
+
+Floating chat features:
+- Assistant icon uses `frontend/src/assets/icons-energy.png`
+- `Clear` button to clear chat history in the floating panel
+- Chat-like Q&A bubbles (question/answer timeline)
+- Keyboard behavior: `Enter` to send, `Shift+Enter` for newline
 
 Bonus behavior details:
 - If Anthropic key is valid and reachable, response source is `anthropic` (real LLM call).
@@ -164,7 +180,7 @@ Commands used:
 ```bash
 docker compose up --build -d
 docker compose exec -T backend python manage.py check
-docker compose exec -T frontend npm run build
+docker compose exec -T frontend pnpm run build
 ./smoke_test.sh
 ```
 

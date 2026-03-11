@@ -56,4 +56,6 @@ export type ChatResponse = {
   answer?: string;
   detail?: string;
   source?: "anthropic" | "fallback";
+  llm_status?: "connected" | "unavailable";
+  llm_error?: string;
 };

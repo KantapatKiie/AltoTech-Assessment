@@ -21,7 +21,7 @@ done
 
 echo "[3/4] Running backend checks and frontend build..."
 docker compose exec -T backend python manage.py check
-docker compose exec -T frontend npm run build
+docker compose exec -T frontend pnpm run build
 
 echo "[4/4] Smoke tests..."
 curl -fsS http://localhost:8000/api/machines >/dev/null

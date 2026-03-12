@@ -14,7 +14,7 @@ type Props = {
   answer: string;
   source: string;
   meta?: string;
-  onAsk: () => void;
+  onAsk: (question: string) => void;
 };
 
 type ChatItem = {
@@ -67,8 +67,10 @@ export function ChatAssistantPanel({
 
   const handleAsk = () => {
     if (!canSend) return;
-    setPendingQuestion(prompt.trim());
-    onAsk();
+    const question = prompt.trim();
+    setPendingQuestion(question);
+    setPrompt("");
+    onAsk(question);
   };
 
   const handleKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {

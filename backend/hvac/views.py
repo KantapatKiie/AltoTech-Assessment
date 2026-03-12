@@ -31,6 +31,15 @@ METRIC_MAP = {
 logger = logging.getLogger(__name__)
 
 
+def _resolve_model_candidates(primary_model: str) -> list[str]:
+    raw_candidates = os.getenv("ANTHROPIC_MODEL_CANDIDATES", "")
+    candidates = [m.strip() for m in raw_candidates.split(",") if m.strip()]
+    ordered_models = [primary_model, *candidates]
+
+    # Preserve order but de-duplicate so we do not retry the same model.
+    return list(dict.fromkeys(ordered_models))
+
+
 def _build_fallback_answer(prompt: str, context: dict, llm_error: str) -> str:
     question = prompt.lower()
     energy = context["recent_24h_energy_kwh"]
@@ -346,6 +355,8 @@ class DailyEnergyView(View):
 class AIChatView(View):
     def post(self, request: HttpRequest):
         api_key = os.getenv("ANTHROPIC_API_KEY", "")
+        model_name = os.getenv("ANTHROPIC_MODEL", "claude-3-haiku-20240307")
+        model_candidates = _resolve_model_candidates(model_name)
         if not api_key:
             return JsonResponse({"detail": "ANTHROPIC_API_KEY is not configured"}, status=400)
 
@@ -377,42 +388,49 @@ class AIChatView(View):
             "recent_decisions": recent_decisions,
         }
 
-        try:
-            client = Anthropic(api_key=api_key)
-            msg = client.messages.create(
-                model="claude-3-5-haiku-latest",
-                max_tokens=400,
-                temperature=0.2,
-                messages=[
+        client = Anthropic(api_key=api_key)
+        model_errors: list[dict[str, str]] = []
+        user_content = (
+            "You are an HVAC operations assistant. Answer briefly in Thai with concrete observations.\n"
+            f"Context: {json.dumps(context, default=str)}\n"
+            f"Question: {prompt}"
+        )
+
+        for candidate_model in model_candidates:
+            try:
+                msg = client.messages.create(
+                    model=candidate_model,
+                    max_tokens=400,
+                    temperature=0.2,
+                    messages=[{"role": "user", "content": user_content}],
+                )
+                answer = msg.content[0].text if msg.content else "No response"
+                return JsonResponse(
                     {
-                        "role": "user",
-                        "content": (
-                            "You are an HVAC operations assistant. Answer briefly in Thai with concrete observations.\n"
-                            f"Context: {json.dumps(context, default=str)}\n"
-                            f"Question: {prompt}"
-                        ),
+                        "answer": answer,
+                        "context": context,
+                        "source": "anthropic",
+                        "llm_status": "connected",
+                        "llm_model": candidate_model,
+                        "llm_attempted_models": model_candidates,
                     }
-                ],
-            )
-            answer = msg.content[0].text if msg.content else "No response"
-            return JsonResponse(
-                {
-                    "answer": answer,
-                    "context": context,
-                    "source": "anthropic",
-                    "llm_status": "connected",
-                }
-            )
-        except Exception as exc:
-            error_message = str(exc)
-            logger.warning("Anthropic request failed: %s", error_message)
-            fallback = _build_fallback_answer(prompt, context, error_message)
-            return JsonResponse(
-                {
-                    "answer": fallback,
-                    "context": context,
-                    "source": "fallback",
-                    "llm_status": "unavailable",
-                    "llm_error": error_message,
-                }
-            )
+                )
+            except Exception as exc:
+                error_message = str(exc)
+                model_errors.append({"model": candidate_model, "error": error_message})
+                logger.warning("Anthropic request failed for model %s: %s", candidate_model, error_message)
+
+        joined_error = " | ".join([f"{item['model']}: {item['error']}" for item in model_errors])
+        fallback = _build_fallback_answer(prompt, context, joined_error)
+        return JsonResponse(
+            {
+                "answer": fallback,
+                "context": context,
+                "source": "fallback",
+                "llm_status": "unavailable",
+                "llm_model": model_name,
+                "llm_attempted_models": model_candidates,
+                "llm_error": joined_error,
+                "llm_model_errors": model_errors,
+            }
+        )

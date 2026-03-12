@@ -104,12 +104,16 @@ export function useDashboardData() {
       .catch((e) => setError(e instanceof Error ? e.message : "Unknown error"));
   }, [selectedMachineId]);
 
-  const askAI = async () => {
+  const askAI = async (question: string) => {
+    const promptToSend = question.trim();
+    if (!promptToSend) return;
+
     try {
       setLoadingChat(true);
+      setChatPrompt("");
       setChatAnswer("");
       setChatMeta("");
-      const result = await askAssistant(chatPrompt);
+      const result = await askAssistant(promptToSend);
       setChatAnswer(result.answer || "No answer");
       setChatSource(result.source || "");
       const parts = [result.llm_status ? `llm: ${result.llm_status}` : "", result.llm_error || ""].filter(Boolean);

@@ -211,3 +211,10 @@ docker compose exec -T frontend pnpm run build
 - Timescale extension is enabled and `time_bucket()` is used for aggregation.
 - Hypertable conversion is attempted in seed script and gracefully skipped if table PK constraints conflict with partitioning requirements.
 - For production hardening, next steps would include explicit test suites, auth, pagination, and richer anomaly detection.
+
+*** Recommend Scale ***
+- App metrics → InfluxDB
+- Product analytics → TimescaleDB
+- Business data → PostgreSQL
+- ## Example >> Kafka → Flink → ClickHouse pipeline
+  

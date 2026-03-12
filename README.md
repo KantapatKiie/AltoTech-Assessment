@@ -216,5 +216,5 @@ docker compose exec -T frontend pnpm run build
 - App metrics → InfluxDB
 - Product analytics → TimescaleDB
 - Business data → PostgreSQL
-- ## Example >> Kafka → Flink → ClickHouse pipeline
+- ## Insight >> Kafka → Flink → ClickHouse pipeline
   
